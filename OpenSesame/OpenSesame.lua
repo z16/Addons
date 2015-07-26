@@ -24,7 +24,7 @@ update_doors = function()
         end
     end
 end:cond(function()
-    return settings.auto
+    return settings.Auto
 end)
 
 update_doors()
@@ -36,7 +36,7 @@ exceptions = S{
 check_door = function(door)
     return door
         and door.spawn_type == 34
-        and door.distance < settings.range^2
+        and door.distance < settings.Range^2
         and (not last[door.index] or os.time() - last[door.index] > 7)
         and door.name:byte() ~= 95
         and door.name ~= 'Furniture'
