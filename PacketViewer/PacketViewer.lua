@@ -540,7 +540,7 @@ function register_packet(dir, id, data, modified, injected, blocked)
     end
 
     -- This part is executed if a certain packet matches the current logging critera.
-    if logging.output and (dir == 'both' or dir == logging.direction) and logging.filter:contains(id) then
+    if logging.output and (logging.direction == 'both' or dir == logging.direction) and logging.filter:contains(id) then
         log_packet(dir, id, data, modified, injected, blocked)
     end
 
