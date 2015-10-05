@@ -67,7 +67,7 @@ mode_strings = T{
     h       = 'hybrid',
     b       = 'hybrd',
 }
-modes = mode_strings:keyset()
+
 output_strings = T{
     console = 'console',
     chatlog = 'chatlog',
@@ -78,7 +78,7 @@ output_strings = T{
     l       = 'chatlog',
     f       = 'file',
 }
-outputs = output_strings:keyset()
+
 direction_strings = T{
     incoming    = 'incoming',
     ['in']      = 'incoming',
@@ -91,32 +91,6 @@ direction_strings = T{
     all         = 'both',
     a           = 'both',
 }
-directions = direction_strings:keyset()
-
-type_lengths = {
-    ['unsigned char']   = 1,
-    ['unsigned short']  = 2,
-    ['unsigned int']    = 4,
-    ['unsigned long']   = 8,
-    ['signed char']     = 1,
-    ['signed short']    = 2,
-    ['signed int']      = 4,
-    ['signed long']     = 8,
-    ['char']            = 1,
-    ['short']           = 2,
-    ['int']             = 4,
-    ['long']            = 8,
-    ['bool']            = 1,
-    ['float']           = 4,
-    ['double']          = 8,
-    ['data']            = 1,
-}
-setmetatable(type_lengths, {__index = function(t, k)
-    local type, count = k:match('([%a%s]+)%[(%d+)%]')
-    if type and rawget(type_lengths, type) then
-        return tonumber(count)*type_lengths[type]
-    end
-end})
 
 colors = {}
 colors['hexborder'] =   '\\cs(0,255,0)'
@@ -334,7 +308,7 @@ end
 -- Main packet tracker handler
 -- Gets packet information, displays the packet in the track text box.
 function track_packet(dir, id, data, modified, injected, blocked)
-    if tracking.once == true then
+    if tracking.once then
         tracking.once = false
     end
 
@@ -347,7 +321,7 @@ function track_packet(dir, id, data, modified, injected, blocked)
         end
     end
 
-    local fields = packets.fields.get(dir, id, data)
+    local fields = packets.fields(dir, id, data)
 
     -- Determine colors for the respective bytes.
     -- Only necessary if the fields are different from the previously calculated.
@@ -372,62 +346,34 @@ function track_packet(dir, id, data, modified, injected, blocked)
         local color = colors[1]
         -- Determine new color ranges.
         for field, index in fields:it() do
-            local length = type_lengths[field.ctype]
-            local final = false
-            if not length and field.ctype == 'char*' then
-                length = packet._size - pos + 1
-                final = true
-            elseif field.ctype:startswith('bit') or field.ctype:startswith('boolbit') then
-                length = 0
-            end
-
-            local bitfield = field.ctype:startswith('bit') or field.ctype:startswith('boolbit')
             local filter_pass = filter_settings(field)
-            if bitfield then
-                if bitoffset == 0 then
-                    color = filter_pass and colors[index % #colors] or colors.gray
+            local color = filter_pass and colors[index % #colors] or colors.gray
+
+            -- Set the color of the relevant bytes
+            local from = (field.index / 8):floor() + 1
+            local to = ((field.index + field.length) / 8):ceil()
+            for i = from, to do
+                if byte_colors[i] == '\\cr' then
+                    byte_colors[i] = color
                 end
-
-                local bitmatch = field.ctype:match('%[(%d+)%]')
-                local bits = bitmatch and bitmatch:number() or 1
-                bitoffset = bitoffset + bits
-
-                if bitoffset % 8 == 0 then
-                    length = bitoffset / 8
-                    bitoffset = 0
-                end
-
-            else
-                if bitoffset > 0 then
-                    bitoffset = 0
-                    length = length + (bitoffset / 8):ceil()
-                end
-
-                color = filter_pass and colors[index % #colors] or colors.gray
-
             end
+            byte_colors[to + 1] = '\\cr'
 
-            for i = pos, pos + length - 1 do
-                byte_colors[i] = color
-            end
-            byte_colors[pos + length] = '\\cr'
-
+            -- Add the line to the tracker
             if filter_pass then
                 packet._lines:append('%s: %s${%s|-}%s\\cr':format(field.label, color, field.label, (field.fn and '${_f_%s}':format(field.label) or '')))
             end
 
+            -- Check for const violations
             if settings.CheckConst and field.const and field.const ~= packet[field.label] then
                 print('Const violation found in %s packet 0x%.3X, field %s: %s ≠ %s':format(packet._dir, packet._id, field.label, tostring(packet[field.label]), tostring(field.const)))
             end
-
-            pos = pos + length
         end
 
         for field in fields:filter(filter_settings):filter(boolean._exists .. table.get-{'fn'}):it() do
             local val = field.fn(packet[field.label], packet._raw)
---            packet['_f_'..field.label] = val and ' ('..val..')' or ''
             if val ~= nil then
-                packet[field.label] = val
+                packet['_f_' .. field.label] = ' (' .. val .. ')'
             end
         end
 
@@ -446,7 +392,7 @@ function track_packet(dir, id, data, modified, injected, blocked)
     end
 
     -- Determine various display-related values.
-    packet._hexid = '0x' .. id:hex():zfill(3)
+    packet._hexid = '0x%.3X':format(id)
     packet._hextable = packet._raw:hexformat(tracking.byte_colors) -- The fully colored hex table
 
     packet._display_padding = ' ':rep(packet._id:log(10):floor() - packet._size:log(10):floor() + 2)
@@ -481,7 +427,7 @@ log_packet = (function()
 
     return function(dir, id, data, modified, injected, blocked)
         local name = packets.data[dir][id].name
-        if logging.mode ~= 'hybrid' and (logging.mode == 'known' and name == 'Unknown' or logging.mode == 'unknown' and name ~= 'Unknown') then
+        if not force and (logging.mode ~= 'hybrid' and (logging.mode == 'known' and name == 'Unknown' or logging.mode == 'unknown' and name ~= 'Unknown')) then
             return
         end
 
@@ -497,7 +443,7 @@ log_packet = (function()
 
             local field_data = ''
             if settings.LogFields then
-                local fields = packets.fields.get(dir, id, data)
+                local fields = packets.fields(dir, id, data)
 
                 if fields then
                     field_data = '\n'
@@ -529,7 +475,7 @@ function scan_packet(dir, id, data, modified, injected, blocked)
     end
     from = from + 3
 
-    print('Match found for ' .. scan.value:unpack(scan.pack) .. ' in ' .. dir .. ' packet ' .. id .. ' (0x' .. id:hex():zfill(3) .. (name and ', ' .. name or '') .. ') at byte ' .. from .. ' (0x' .. from:hex():zfill(2) .. ')')
+    print('Match found for %s in %s packet %u (0x%.3X) at byte %u (0x%.2X).':format(tostring(scan.value:unpack(scan.pack)), dir, id, id, from, from))
 end
 
 -- Called on every packet, both incoming and outgoing. Further filtering done inside based on packet category and mode.
@@ -555,8 +501,9 @@ function display_packet(index)
         if saved_packets.n == 0 then
             error('No packets recorded.')
         else
-            error('Only '..saved_packets.n..' packet'..(saved_packets.n > 1 and 's' or '')..' recorded.')
+            error('Only %u packet%s recorded.':format(saved_packets.n, saved_packets.n > 1 and 's' or ''))
         end
+
         return
     end
 
@@ -635,7 +582,7 @@ windower.register_event('addon command', function(command, ...)
         until not direction_strings[args[1]]
 
         tracking.filter = T{}
-        for i = 1, args:length()/2 do
+        for i = 1, args:length() / 2 do
             local key = args[i]
             local value = args[i + 1]
             value = value:number()
@@ -784,3 +731,7 @@ windower.register_event('addon command', function(command, ...)
     end
 
 end)
+
+--[[
+This code is in the public domain.
+]]
