@@ -72,8 +72,8 @@ windower.register_event('prerender', function()
     end
 
     for id, index in open:it() do
-        packets.inject(packets.outgoing(0x01A, {
-            ['Target ID'] = id,
+        packets.inject(packets.new('outgoing', 0x01A, {
+            ['Target'] = id,
             ['Target Index'] = index
         }))
         last[index] = os.time()
