@@ -53,7 +53,8 @@ defaults.Show.Unknown = true
 defaults.Show.Junk = true
 defaults.CheckConst = true
 defaults.LogChat = true
-defaults.LogFields = false
+defaults.LogFields = true
+defaults.LogTimestamp = true
 
 settings = config.load(defaults)
 
@@ -427,13 +428,14 @@ log_packet = (function()
 
     return function(dir, id, data, modified, injected, blocked)
         local name = packets.data[dir][id].name
+
         if not force and (logging.mode ~= 'hybrid' and (logging.mode == 'known' and name == 'Unknown' or logging.mode == 'unknown' and name ~= 'Unknown')) then
             return
         end
 
         local mod_str = mods[injected][blocked]
         local header = header_str:format(dirs[dir], id, mod_str)
-
+        
         if logging.output == 'chatlog' then
             log(header .. ' ' .. data:hex(' '))
         elseif logging.output == 'console' then
@@ -454,8 +456,16 @@ log_packet = (function()
                     end
                 end
             end
+            
+            if settings.LogTimestamp then
+                local timestamp = '['..os.date('%X', os.time())..'] '
+                file[dir]:append(timestamp)
+                file.full:append(timestamp)
+            end
 
             file.full:append('%s\n%s%s\n':format(header, hex_data, field_data))
+
+
             file[dir]:append('%s\n%s%s\n':format('Packet 0x%.3X%s':format(id, mod_str), hex_data, field_data))
             files.new('data/logs/%s/0x%.3X.log':format(dir, id), true):append('%s\n%s%s\n':format('Packet%s':format(mod_str), hex_data, field_data))
         end
