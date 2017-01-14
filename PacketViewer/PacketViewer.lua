@@ -54,6 +54,7 @@ defaults.Show.Junk = true
 defaults.CheckConst = true
 defaults.LogChat = true
 defaults.LogFields = false
+defaults.LogTimestamp = true
 
 settings = config.load(defaults)
 
@@ -65,7 +66,7 @@ mode_strings = T{
     k       = 'known',
     u       = 'unknown',
     h       = 'hybrid',
-    b       = 'hybrd',
+    b       = 'hybrid',
 }
 
 output_strings = T{
@@ -173,7 +174,7 @@ windower.register_event('mouse', function(type, x, y, delta)
     end
 end)
 
-string.hexformat = (function()
+do
     -- Precompute hex string tables for lookups, instead of constant computation.
     local top_row = ('    |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F      | 0123456789ABCDEF\n' .. '-':rep((16+1)*3 + 2) .. '  ' .. '-':rep(16 + 6) .. '\n'):enclose(colors['hexborder'], '\\cr')
 
@@ -197,7 +198,7 @@ string.hexformat = (function()
     end
 
     -- Receives a byte string and returns a table-formatted string with 16 columns.
-    return function(str)
+    string.hexformat = function(str)
         local length = #str
         local str_table = {}
         local from = 1
@@ -235,9 +236,9 @@ string.hexformat = (function()
         end
         return '%s%s\\cr':format(top_row, table.concat(str_table))
     end
-end)()
+end
 
-string.hexformat_file = (function()
+do
     -- Precompute hex string tables for lookups, instead of constant computation.
     local top_row = '        |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F      | 0123456789ABCDEF\n    ' .. '-':rep((16+1)*3 + 2) .. '  ' .. '-':rep(16 + 6) .. '\n'
 
@@ -261,7 +262,7 @@ string.hexformat_file = (function()
     end
 
     -- Receives a byte string and returns a table-formatted string with 16 columns.
-    return function(str, byte_colors)
+    string.hexformat_file = function(str, byte_colors)
         local length = #str
         local str_table = {}
         local from = 1
@@ -296,7 +297,7 @@ string.hexformat_file = (function()
         end
         return '%s%s':format(top_row, table.concat(str_table))
     end
-end)()
+end
 
 -- Returns true if the 
 function filter_settings(field)
@@ -344,7 +345,8 @@ function track_packet(dir, id, data, modified, injected, blocked)
         local bitoffset = 0
         local coloroffset = 0
         local color = colors[1]
-        -- Determine new color ranges.
+
+        -- Process individual fields
         for field, index in fields:it() do
             local filter_pass = filter_settings(field)
             local color = filter_pass and colors[index % #colors] or colors.gray
@@ -363,10 +365,14 @@ function track_packet(dir, id, data, modified, injected, blocked)
             if filter_pass then
                 packet._lines:append('%s: %s${%s|-}%s\\cr':format(field.label, color, field.label, (field.fn and '${_f_%s}':format(field.label) or '')))
             end
+        end
 
-            -- Check for const violations
-            if settings.CheckConst and field.const and field.const ~= packet[field.label] then
-                print('Const violation found in %s packet 0x%.3X, field %s: %s ≠ %s':format(packet._dir, packet._id, field.label, tostring(packet[field.label]), tostring(field.const)))
+        -- Check for const violations
+        if settings.CheckConst then
+            for field in fields:it() do
+                if field.const and field.const ~= packet[field.label] then
+                    print('Const violation found in %s packet 0x%.3X, field %s: %s ≠ %s':format(packet._dir, packet._id, field.label, tostring(packet[field.label]), tostring(field.const)))
+                end
             end
         end
 
@@ -410,7 +416,7 @@ end
 
 -- Main packet logger handler
 -- Gets packet data and decides whether and where to log it.
-log_packet = (function()
+do
     local mods = {
         [true] = {
             [true] = ' (Injected, Blocked)',
@@ -425,7 +431,7 @@ log_packet = (function()
 
     local header_str = '%s packet 0x%.3X%s:'
 
-    return function(dir, id, data, modified, injected, blocked)
+    log_packet = function(dir, id, data, modified, injected, blocked)
         local name = packets.data[dir][id].name
         if not force and (logging.mode ~= 'hybrid' and (logging.mode == 'known' and name == 'Unknown' or logging.mode == 'unknown' and name ~= 'Unknown')) then
             return
@@ -450,20 +456,21 @@ log_packet = (function()
                     local packet = packets.parse(dir, data)
 
                     for field in fields:filter(filter_settings):it() do
-                        field_data = field_data .. '%s: %s\n':format(field.label, tostring(field.fn and field.fn(packet[field.label], data) or packet[field.label]))
+                        field_data = field_data .. '%s: %s%s\n':format(field.label, tostring(packet[field.label]), field.fn and ' (%s)':format(field.fn(packet[field.label], data)) or '')
                     end
                 end
             end
 
-            file.full:append('%s\n%s%s\n':format(header, hex_data, field_data))
-            file[dir]:append('%s\n%s%s\n':format('Packet 0x%.3X%s':format(id, mod_str), hex_data, field_data))
-            files.new('data/logs/%s/0x%.3X.log':format(dir, id), true):append('%s\n%s%s\n':format('Packet%s':format(mod_str), hex_data, field_data))
+            local timestamp = settings.LogTimestamp and '[%s] ':format(os.date('%Y-%m-%d %X')) or ''
+            file.full:append('%s%s\n%s%s\n':format(timestamp, header, hex_data, field_data))
+            file[dir]:append('%s%s\n%s%s\n':format(timestamp, 'Packet 0x%.3X%s':format(id, mod_str), hex_data, field_data))
+            files.new('data/logs/%s/0x%.3X.log':format(dir, id), true):append('%s%s\n%s%s\n':format(timestamp, mod_str, hex_data, field_data))
         end
     end
-end)()
+end
 
 -- Main packet scanner handler
-function scan_packet(dir, id, data, modified, injected, blocked)
+scan_packet = function(dir, id, data, modified, injected, blocked)
     local name = packets.data[dir][id].name
     if scan.mode ~= 'hybrid' and name:lower() ~= scan.mode then
         return
@@ -479,7 +486,7 @@ function scan_packet(dir, id, data, modified, injected, blocked)
 end
 
 -- Called on every packet, both incoming and outgoing. Further filtering done inside based on packet category and mode.
-function register_packet(dir, id, data, modified, injected, blocked)
+register_packet = function(dir, id, data, modified, injected, blocked)
     -- This part is executed if a certain packet is currently being tracked.
     if tracking.active and tracking[dir]:contains(id) and (tracking.once == nil or tracking.once == true) then
         track_packet(dir, id, data, modified, injected, blocked)
