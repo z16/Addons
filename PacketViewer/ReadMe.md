@@ -9,9 +9,9 @@ This addon has three main functions for working with packets.
 ### Structure
 
 Each packet contains a four byte header which consists of the following:
-9 bit - Packet ID
-7 bit - Packet length / 4
-16 bit - Sequence ID
+* 9 bit - Packet ID
+* 7 bit - Packet length / 4
+* 16 bit - Sequence ID
 
 Packets are usually referred to by their ID in hex form with three digits, i.e. it will be of the form `0xXXX`. For example, the packet carrying zone information every time you zone is packet `10`, which is `0xA` in hexadecimal form, and since we use three digits it will be `0x00A`. Since packet IDs use 9 bits, the highest packet ID is `0x1FF`, which is `511`.
 
@@ -65,7 +65,7 @@ This feature is used when trying to identify packets. The syntax is as follows:
 //packetviewer log <console|chatlog|file> <incoming|outgoing|both> [not] [id1 [id2 [...]]]
 ```
 
-When you want to figure out which packet is responsible for certain features of the FFXI client, you will use this function. 
+When you want to figure out which packet is responsible for certain features of the FFXI client, you will use this function.
 
 Let's consider the following example: We want to find out which packet carries chat messages sent by other people. To do this, we turn on logging:
 ```
@@ -76,7 +76,7 @@ This is short for `packetviewer log console incoming`, i.e. we will log all inco
 
 Depending on where you are and if there are mobs and people around it might get very spammy very quickly:
 
-![Packet spam](https://picster.at/img/d/4/d/d4d7c6696504b30d67a8c2c9a423d954.png)
+![Packet spam](images/spam.png)
 
 You will see a lot of packets being sent despite no chat messages coming in, which makes sense, since the client has to be informed of a lot of things by the server. But this isn't particularly helpful, so we need to filter them. To do that, we can exclude some packets, as described above. Simply note which packets are being spammed (the ID is shown in the log output). The most common packets that are spammed are `0x00D` and `0x00E`, which are carrying other PC and NPC information respectively, so we are going to filter those out. `0x028` is carrying information on any action that a player or NPC are performing, and they can get spammed quite a bit as well. Hence we are going to use this command:
 ```
@@ -108,15 +108,29 @@ For example, to track the packet we were interested before, we would do this:
 
 A little text box will appear, with no info in it yet:
 
-![Default tracking text box](https://picster.at/img/0/7/b/07bd7121ce720f4f3c2f2e2e3442f617.png)
+![Default tracking text box](images/tracker-blank.png)
 
 Now we do the same as above and send ourselves a tell:
 
-![Tracking text box, tell received](https://picster.at/img/9/d/8/9d882fcf396355bf8be9fd6bac46e2db.png)
+![Tracking text box, tell received](images/tracker-tell.png)
 
 Here we see the text box change and display the memory of the packet, in a hex table, as well as the information it was able to extract from it. This information is only shown for packets we know and which have already been described in the `Windower/addons/libs/packets/fields.lua` file. If the `0x017` packet had not been defined in there, this is what it would have looked like instead:
 
-![Tracking text box, no info](https://picster.at/img/b/7/9/b79d00618aa377323601d931f561e4ef.png)
+![Tracking text box, no info](images/tracker-noinfo.png)
+
+Sometimes this isn't as easy as it should be. For example, say you want to track NPC update packets (incoming `0x00E`) for a mob you want to focus on. If that mob is surrounded by other mobs, you will receive update packets for all of them. To only track packets pertaining to the one mob *PacketViewer* supports a filtering method. You can specify any field from the `fields.lua` file and a value you expect it to be. To expand on the example, say you're in *Qufim Island* and you want to analyze one of the two *Seeker Bats* flying around near the *Jeuno* entrance. One of them has index 7, the other index 8. You can filter them like so:
+
+```
+//pv t i 0x00E Index 7
+```
+
+This will now only show packets whose `Index` field corresponds to the number `7`. If you were at the cave exit and want to analyze packets of all the *Land Worms*, without any gigas or crabs interrupting, you can also filter by name:
+
+```
+//pv t i 0x00E Name "Land Worm"
+```
+
+Note that you need to use quotes to specify names containing spaces.
 
 ## Recording
 
@@ -132,6 +146,8 @@ It can be shortened to `//pv rec`. It will store all tracked (since recording wa
 
 Here `number` is the number of the recorded packet to display. Once the display box shows up (which looks identical to the tracking box, except for an indicator of which of the recorded packets is being displayed) you can hover your mouse over it and use the scroll wheel to scroll through the recorded packets. This makes it easy to examine and compare same packets that arrived at a different time.
 
+![Display text box, scrolling through recorded packets](images/record.gif)
+
 ## Scanning
 
 The final major feature of *PacketViewer* is the scanning of incoming and/or outgoing packets for certain values:
@@ -146,4 +162,5 @@ For example, if you want to know which packets contain your personal ID (mine is
 
 The following is some example output in the console window:
 
-![Scanning for player ID](https://picster.at/img/1/2/6/1268b23ed50a860871faea49f75571d4_830.jpg)
+![Scanning for player ID](images/scan.png)
+

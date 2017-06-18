@@ -471,8 +471,8 @@ end
 
 -- Main packet scanner handler
 scan_packet = function(dir, id, data, modified, injected, blocked)
-    local name = packets.data[dir][id].name
-    if scan.mode ~= 'hybrid' and name:lower() ~= scan.mode then
+    local mode = packets.raw_fields[dir][id] and 'known' or 'unknown'
+    if scan.mode ~= 'hybrid' and scan.mode ~= mode then
         return
     end
 
@@ -616,12 +616,12 @@ windower.register_event('addon command', function(command, ...)
 
     elseif command == 'scan' or command == 's' then
         if not args[1] then
-            error('Specify a command: //pv scan <start|stop|for> [i|o] <val>')
+            error('Specify a command: //pv scan incoming|outgoing|both <val> or //pv scan start|stop')
             return
         end
 
-        if not args[2] and args[1] ~= 'start' and args[1] ~= 'stop' then
-            error('Specify an argument to scan for: //pv scan <start|stop|for> [i|o] <val>')
+        if not args[2] and direction_strings[args[1]] then
+            error('Specify an argument to scan for: //pv scan incoming|outgoing|both [known|unknown|hybrid] <val>')
             return
         end
 
@@ -631,10 +631,15 @@ windower.register_event('addon command', function(command, ...)
         elseif args[1] == 'stop' then
             scan.active = false
 
-        elseif args[1] == 'for' or args[1] == 'f' then
-            local dir = direction_strings[args[2]] or 'both'
-            local mode = mode_strings[args[dir == 'both' and 2 or 3]] or 'hybrid'
-            local arg = select(4, ...) or select(3, ...) or select(2, ...)
+        elseif args[1] == 'mode' or args[1] == 'm' then
+            scan.mode = mode_strings[args[2]] or scan.mode
+
+        else
+            local dir = direction_strings[args[1]]
+            local mode = mode_strings[args[2]]
+            local arg = table.concat(args, ' ', mode and 3 or 2)
+            mode = mode or 'hybrid'
+
             if tonumber(arg) then
                 arg = tonumber(arg)
             end
@@ -654,13 +659,12 @@ windower.register_event('addon command', function(command, ...)
             else
                 pack_str = 'A'
             end
+
             scan.pack = pack_str
             scan.value = pack_str:pack(arg)
             scan.dir = dir
             scan.mode = mode
-
-        elseif args[1] == 'mode' or args[1] == 'm' then
-            scan.mode = mode_strings[args[2]] or scan.mode
+            scan.active = true
 
         end
 
