@@ -37,9 +37,9 @@ Packets are usually packed loosely, i.e. they will often have meaningless paddin
 As a rule of thumb, packet memory is not zeroed. That means that you will often find junk memory of previous packets that you need to account for, although often it can just be ignored (especially since our API was designed with that in mind, so it will accomodate for that problem).
 
 Often SE will use bit packing to compress more data into a single packet. For example the crafting skills of a character will contain three values in a two byte block:
-5 bit - Rank
-10 bit - Level
-1 bit (boolean) - Capped or not
+* 5 bit - Rank
+* 10 bit - Level
+* 1 bit (boolean) - Capped or not
 
 So if you have rank 3 (*Novice*), level 38 and are not currently capped, the values would be as follows:
 ```
@@ -131,6 +131,8 @@ This will now only show packets whose `Index` field corresponds to the number `7
 ```
 
 Note that you need to use quotes to specify names containing spaces.
+
+To then stop tracking incoming packets when you have enough to work with, and don't want it to keep spamming you (especially useful when working with mobs once you've observed the behavior you want to), you would use `//pv t stop` or `//pv t s`.
 
 ## Recording
 
