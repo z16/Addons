@@ -165,7 +165,7 @@ saved_packets = L{}
 function cap(val, min, max)
     return val > max and max or val < min and min or val
 end
- 
+
 -- Scroll through display packets
 windower.register_event('mouse', function(type, x, y, delta)
     if type == 10 and display:hover(x, y) then
@@ -187,6 +187,7 @@ do
         end
     end
     chars[0x5C] = '\\\\'
+    chars[0x25] = '%%'
 
     local line_replace = {}
     for i = 0x01, 0x10 do
@@ -230,7 +231,7 @@ do
                 :format(partial_col:unpack())
                 :format(i, i)
                 :format(short_replace[bytes]:format(unpack(char_table))
-                :format(partial_col:unpack())) 
+                :format(partial_col:unpack()))
             from = to + 1
             to = to + 0x10
         end
@@ -251,6 +252,7 @@ do
         end
     end
     chars[0x5C] = '\\\\'
+    chars[0x25] = '%%'
 
     local line_replace = {}
     for i = 0x01, 0x10 do
@@ -299,7 +301,7 @@ do
     end
 end
 
--- Returns true if the 
+-- Returns true if the
 function filter_settings(field)
     return field.label:startswith('_junk') and settings.Show.Junk
         or field.label:startswith('_unknown') and settings.Show.Unknown
