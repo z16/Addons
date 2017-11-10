@@ -44,11 +44,19 @@ Often SE will use bit packing to compress more data into a single packet. For ex
 So if you have rank 3 (*Novice*), level 38 and are not currently capped, the values would be as follows:
 ```
  3    == 0b     00011
-32    == 0b0000100110
+38    == 0b0000100110
 false == 0b         0
 ```
 
-Putting these values together (in the right other) results in the two bytes `0b11100011 0b00000100`, which corresponds to the hex representation of `E3 04`
+Putting these values together (in the right order) results in the two bytes, using the game's little endian system (i.e. lower order bytes come first):
+1. Inserting the rank (3):
+   <pre>0b xxx<b>00011</b> xxxxxxxx</pre>
+2. Inserting the level (38):
+   <pre>0b <b>110</b>00011 x<b>0000100</b></pre>
+3. Inserting the capped status (false):
+   <pre>0b 11000011 <b>0</b>0000100</pre>
+
+This corresponds to the hex representation `C3 04`.
 
 ## General addon usage
 
