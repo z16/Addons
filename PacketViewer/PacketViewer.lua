@@ -381,7 +381,7 @@ function track_packet(dir, id, data, modified, injected, blocked)
         for field in fields:filter(filter_settings):filter(boolean._exists .. table.get-{'fn'}):it() do
             local val = field.fn(packet[field.label], packet._raw)
             if val ~= nil then
-                packet['_f_' .. field.label] = ' (' .. val .. ')'
+                packet['_f_' .. field.label] = ' (' .. tostring(val) .. ')'
             end
         end
 
