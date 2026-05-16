@@ -1,16 +1,14 @@
 _addon.name = 'PacketViewer'
 _addon.author = 'Arcon'
-_addon.command = 'packetviewer'
-_addon.commands = {'pv'}
-_addon.version = '1.0.0.0'
+_addon.commands = {'packetviewer', 'pv'}
+_addon.version = '1.0.1.0'
 
 require('luau')
-texts = require('texts')
-files = require('files')
-packets = require('packets')
-chat = require('chat')
+local texts = require('texts')
+local files = require('files')
+local packets = require('packets')
 
-defaults = {}
+local defaults = {}
 defaults.tracker = {}
 defaults.tracker.pos = {}
 defaults.tracker.pos.x = 0
@@ -56,9 +54,9 @@ defaults.LogChat = true
 defaults.LogFields = false
 defaults.LogTimestamp = true
 
-settings = config.load(defaults)
+local settings = config.load(defaults)
 
-mode_strings = T{
+local mode_strings = T{
     known   = 'known',
     unknown = 'unknown',
     hybrid  = 'hybrid',
@@ -69,7 +67,7 @@ mode_strings = T{
     b       = 'hybrid',
 }
 
-output_strings = T{
+local output_strings = T{
     console = 'console',
     chatlog = 'chatlog',
     log     = 'chatlog',
@@ -80,7 +78,7 @@ output_strings = T{
     f       = 'file',
 }
 
-direction_strings = T{
+local direction_strings = T{
     incoming    = 'incoming',
     ['in']      = 'incoming',
     i           = 'incoming',
@@ -93,7 +91,7 @@ direction_strings = T{
     a           = 'both',
 }
 
-colors = {}
+local colors = {}
 colors['hexborder'] =   '\\cs(0,255,0)'
 colors['gray'] =        '\\cs(102,102,102)'
 colors[0] =             '\\cs(204,204,0)'
@@ -116,67 +114,58 @@ colors[16] =            '\\cs(153,204,255)'
 colors[17] =            '\\cs(204,153,255)'
 colors[18] =            '\\cs(153,255,204)'
 
-byte_colors = list.range(0x200, '\\cr')
+local byte_colors = list.range(0x200, '\\cr')
 byte_colors[1] = colors.gray
 byte_colors[2] = colors.gray
 byte_colors[3] = colors.gray
 byte_colors[4] = colors.gray
 
-in_set = S{'i', 'in', 'incoming'}
-out_set = S{'o', 'out', 'outgoing'}
-
 -- Create files for output
-file = T{}
+local file = T{}
 file.full = files.new('data/logs/full.log', true)
 file.incoming = files.new('data/logs/incoming.log', true)
 file.outgoing = files.new('data/logs/outgoing.log', true)
 
 -- Text box setup
-text_base_string = L{
+local text_base_string = L{
     'ID:   ${_id|-} (${_hexid|0xXXX})    Name:     ${_name|-}',
     'Size: ${_size|-} bytes${_display_padding|  }    Received: ${_time|-}',
     '',
     '${_hextable}'
-    }:concat('\n')
-display_base_string = L{
+}:concat('\n')
+local display_base_string = L{
     'ID:   ${_id|-} (${_hexid|0xXXX})    Name:     ${_name|-}',
     'Size: ${_size|-} bytes${_display_padding|  }    Received: ${_time|-}',
     '\\cs(255,0,0)#${_current}/#${_total}\\cr',
     '${_hextable}'
-    }:concat('\n')
+}:concat('\n')
 
-tracker = texts.new(text_base_string, settings.tracker, settings)
-display = texts.new(display_base_string, settings.display, settings)
+local tracker = texts.new(text_base_string, settings.tracker, settings)
+local display = texts.new(display_base_string, settings.display, settings)
 
 -- Running data
-tracking = T{
+local tracking = T{
     incoming = S{},
     outgoing = S{},
 }
-logging = T{}
-scan = T{
+local logging = T{}
+local scan = T{
     active = true,
     mode = 'unknown',
     value = nil,
 }
 
-saved_packets = L{}
+local displayed = 0
 
-function cap(val, min, max)
+local saved_packets = L{}
+
+local cap = function(val, min, max)
     return val > max and max or val < min and min or val
 end
 
--- Scroll through display packets
-windower.register_event('mouse', function(type, x, y, delta)
-    if type == 10 and display:hover(x, y) then
-        local index = cap(displayed - delta, 1, saved_packets.n)
-        display_packet(index)
-    end
-end)
-
 do
     -- Precompute hex string tables for lookups, instead of constant computation.
-    local top_row = ('    |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F      | 0123456789ABCDEF\n' .. '-':rep((16+1)*3 + 2) .. '  ' .. '-':rep(16 + 6) .. '\n'):enclose(colors['hexborder'], '\\cr')
+    local top_row = ('    |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F      | 0123456789ABCDEF\n' .. ('-'):rep((16+1)*3 + 2) .. '  ' .. ('-'):rep(16 + 6) .. '\n'):enclose(colors['hexborder'], '\\cr')
 
     local chars = {}
     for i = 0x00, 0xFF do
@@ -191,11 +180,11 @@ do
 
     local line_replace = {}
     for i = 0x01, 0x10 do
-        line_replace[i] = colors.hexborder .. '%%%%3X |' .. ' %%s%.2X':rep(i) .. colors.gray .. ' --':rep(0x10 - i) .. colors.hexborder .. '  %%%%3X | ' .. '%%%%%%%%s\n'
+        line_replace[i] = colors.hexborder .. '%%%%3X |' .. (' %%s%.2X'):rep(i) .. colors.gray .. (' --'):rep(0x10 - i) .. colors.hexborder .. '  %%%%3X | ' .. '%%%%%%%%s\n'
     end
     local short_replace = {}
     for i = 0x01, 0x10 do
-        short_replace[i] = '%%s%s':rep(i) .. (i < 0x10 and colors.gray .. '-':rep(0x10 - i) or '')
+        short_replace[i] = ('%%s%s'):rep(i) .. (i < 0x10 and colors.gray .. ('-'):rep(0x10 - i) or '')
     end
 
     -- Receives a byte string and returns a table-formatted string with 16 columns.
@@ -235,13 +224,13 @@ do
             from = to + 1
             to = to + 0x10
         end
-        return '%s%s\\cr':format(top_row, table.concat(str_table))
+        return ('%s%s\\cr'):format(top_row, table.concat(str_table))
     end
 end
 
 do
     -- Precompute hex string tables for lookups, instead of constant computation.
-    local top_row = '        |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F      | 0123456789ABCDEF\n    ' .. '-':rep((16+1)*3 + 2) .. '  ' .. '-':rep(16 + 6) .. '\n'
+    local top_row = '        |  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F      | 0123456789ABCDEF\n    ' .. ('-'):rep((16+1)*3 + 2) .. '  ' .. ('-'):rep(16 + 6) .. '\n'
 
     local chars = {}
     for i = 0x00, 0xFF do
@@ -256,15 +245,15 @@ do
 
     local line_replace = {}
     for i = 0x01, 0x10 do
-        line_replace[i] = '    %%%%3X |' .. ' %.2X':rep(i) .. ' --':rep(0x10 - i) .. '  %%%%3X | ' .. '%%s\n'
+        line_replace[i] = '    %%%%3X |' .. (' %.2X'):rep(i) .. (' --'):rep(0x10 - i) .. '  %%%%3X | ' .. '%%s\n'
     end
     local short_replace = {}
     for i = 0x01, 0x10 do
-        short_replace[i] = '%s':rep(i) .. '-':rep(0x10 - i)
+        short_replace[i] = ('%s'):rep(i) .. ('-'):rep(0x10 - i)
     end
 
     -- Receives a byte string and returns a table-formatted string with 16 columns.
-    string.hexformat_file = function(str, byte_colors)
+    string.hexformat_file = function(str)
         local length = #str
         local str_table = {}
         local from = 1
@@ -297,20 +286,46 @@ do
             from = to + 1
             to = to + 0x10
         end
-        return '%s%s':format(top_row, table.concat(str_table))
+        return ('%s%s'):format(top_row, table.concat(str_table))
     end
 end
 
 -- Returns true if the
-function filter_settings(field)
+local filter_settings = function(field)
     return field.label:startswith('_junk') and settings.Show.Junk
         or field.label:startswith('_unknown') and settings.Show.Unknown
         or settings.Show.Known
 end
 
+local display_packet = function(index)
+    if index > saved_packets.n then
+        if saved_packets.n == 0 then
+            error('No packets recorded.')
+        else
+            error(('Only %u packet%s recorded.'):format(saved_packets.n, saved_packets.n > 1 and 's' or ''))
+        end
+
+        return
+    end
+
+    local packet = saved_packets[index]
+    packet._current = index
+    packet._total = saved_packets.n
+
+    display:clear()
+    for line in packet._lines:it() do
+        display:appendline(line)
+    end
+
+    display:update(packet)
+    display:show()
+
+    displayed = index
+end
+
 -- Main packet tracker handler
 -- Gets packet information, displays the packet in the track text box.
-function track_packet(dir, id, data, modified, injected, blocked)
+local track_packet = function(dir, id, data, modified, injected, blocked)
     if tracking.once then
         tracking.once = false
     end
@@ -342,12 +357,6 @@ function track_packet(dir, id, data, modified, injected, blocked)
     tracking.fields = fields
 
     if fields then
-        local pos = 5
-        -- Hack to display colors somewhat correctly for bit fields
-        local bitoffset = 0
-        local coloroffset = 0
-        local color = colors[1]
-
         -- Process individual fields
         for field, index in fields:it() do
             local filter_pass = filter_settings(field)
@@ -365,7 +374,7 @@ function track_packet(dir, id, data, modified, injected, blocked)
 
             -- Add the line to the tracker
             if filter_pass then
-                packet._lines:append('%s: %s${%s|-}%s\\cr':format(field.label, color, field.label, (field.fn and '${_f_%s}':format(field.label) or '')))
+                packet._lines:append(('%s: %s${%s|-}%s\\cr'):format(field.label, color, field.label, (field.fn and ('${_f_%s}'):format(field.label) or '')))
             end
         end
 
@@ -373,7 +382,7 @@ function track_packet(dir, id, data, modified, injected, blocked)
         if settings.CheckConst then
             for field in fields:it() do
                 if field.const and field.const ~= packet[field.label] then
-                    print('Const violation found in %s packet 0x%.3X, field %s: %s ≠ %s':format(packet._dir, packet._id, field.label, tostring(packet[field.label]), tostring(field.const)))
+                    print(('Const violation found in %s packet 0x%.3X, field %s: expected %s, got %s'):format(packet._dir, packet._id, field.label, tostring(field.const), tostring(packet[field.label])))
                 end
             end
         end
@@ -400,10 +409,10 @@ function track_packet(dir, id, data, modified, injected, blocked)
     end
 
     -- Determine various display-related values.
-    packet._hexid = '0x%.3X':format(id)
+    packet._hexid = ('0x%.3X'):format(id)
     packet._hextable = packet._raw:hexformat(tracking.byte_colors) -- The fully colored hex table
 
-    packet._display_padding = ' ':rep(packet._id:log(10):floor() - packet._size:log(10):floor() + 2)
+    packet._display_padding = (' '):rep(packet._id:log(10):floor() - packet._size:log(10):floor() + 2)
     packet._time = os.date('%H:%M:%S')
 
     tracker:update(packet)
@@ -418,6 +427,7 @@ end
 
 -- Main packet logger handler
 -- Gets packet data and decides whether and where to log it.
+local log_packet
 do
     local mods = {
         [true] = {
@@ -458,37 +468,37 @@ do
                     local packet = packets.parse(dir, data)
 
                     for field in fields:filter(filter_settings):it() do
-                        field_data = field_data .. '%s: %s%s\n':format(field.label, tostring(packet[field.label]), field.fn and ' (%s)':format(field.fn(packet[field.label], data)) or '')
+                        field_data = field_data .. ('%s: %s%s\n'):format(field.label, tostring(packet[field.label]), field.fn and (' (%s)'):format(field.fn(packet[field.label], data)) or '')
                     end
                 end
             end
 
-            local timestamp = settings.LogTimestamp and '[%s] ':format(os.date('%Y-%m-%d %X')) or ''
-            file.full:append('%s%s\n%s%s\n':format(timestamp, header, hex_data, field_data))
-            file[dir]:append('%s%s\n%s%s\n':format(timestamp, 'Packet 0x%.3X%s':format(id, mod_str), hex_data, field_data))
-            files.new('data/logs/%s/0x%.3X.log':format(dir, id), true):append('%s%s\n%s%s\n':format(timestamp, mod_str, hex_data, field_data))
+            local timestamp = settings.LogTimestamp and ('[%s] '):format(os.date('%Y-%m-%d %X')) or ''
+            file.full:append(('%s%s\n%s%s\n'):format(timestamp, header, hex_data, field_data))
+            file[dir]:append(('%s%s\n%s%s\n'):format(timestamp, ('Packet 0x%.3X%s'):format(id, mod_str), hex_data, field_data))
+            files.new(('data/logs/%s/0x%.3X.log'):format(dir, id), true):append(('%s%s\n%s%s\n'):format(timestamp, mod_str, hex_data, field_data))
         end
     end
 end
 
 -- Main packet scanner handler
-scan_packet = function(dir, id, data, modified, injected, blocked)
+local scan_packet = function(dir, id, data, modified, injected, blocked)
     local mode = packets.raw_fields[dir][id] and 'known' or 'unknown'
     if scan.mode ~= 'hybrid' and scan.mode ~= mode then
         return
     end
 
-    local from, to = data:sub(5):find(scan.value, pos, true)
+    local from, to = data:find(scan.value, 5, true)
     if not from then
         return
     end
-    from = from + 3
+    from = from - 1
 
-    print('Match found for %s in %s packet %u (0x%.3X) at byte %u (0x%.2X).':format(tostring(scan.value:unpack(scan.pack)), dir, id, id, from, from))
+    print(('Match found for %s in %s packet %u (0x%.3X) at byte %u (0x%.2X).'):format(tostring(scan.value:unpack(scan.pack)), dir, id, id, from, from))
 end
 
 -- Called on every packet, both incoming and outgoing. Further filtering done inside based on packet category and mode.
-register_packet = function(dir, id, data, modified, injected, blocked)
+local register_packet = function(dir, id, data, modified, injected, blocked)
     -- This part is executed if a certain packet is currently being tracked.
     if tracking.active and tracking[dir]:contains(id) and (tracking.once == nil or tracking.once == true) then
         track_packet(dir, id, data, modified, injected, blocked)
@@ -505,36 +515,10 @@ register_packet = function(dir, id, data, modified, injected, blocked)
     end
 end
 
-function display_packet(index)
-    if index > saved_packets.n then
-        if saved_packets.n == 0 then
-            error('No packets recorded.')
-        else
-            error('Only %u packet%s recorded.':format(saved_packets.n, saved_packets.n > 1 and 's' or ''))
-        end
-
-        return
-    end
-
-    local packet = saved_packets[index]
-    packet._current = index
-    packet._total = saved_packets.n
-
-    display:clear()
-    for line in packet._lines:it() do
-        display:appendline(line)
-    end
-
-    display:update(packet)
-    display:show()
-
-    displayed = index
-end
-
 windower.register_event('incoming chunk', register_packet+{'incoming'})
 windower.register_event('outgoing chunk', register_packet+{'outgoing'})
 
-parse_track_command = function(args)
+local parse_track_command = function(args)
     if args:length() < 2 then
         error('Specify a packet direction and ID to track: //pv track <<i> <ids>|<o> <ids>> [filters ...]')
         return
@@ -555,9 +539,17 @@ parse_track_command = function(args)
     tracking[direction] = S(ids:map(string.number))
 end
 
+-- Scroll through display packets
+windower.register_event('mouse', function(type, x, y, delta)
+    if type == 10 and display:hover(x, y) then
+        local index = cap(displayed - delta, 1, saved_packets.n)
+        display_packet(index)
+    end
+end)
+
 windower.register_event('addon command', function(command, ...)
     command = command or 'help'
-    args = L{...}
+    local args = L{...}
 
     if command == 'track' or command == 't' then
         if args[1] == 'stop' or args[1] == 's' then
@@ -591,7 +583,7 @@ windower.register_event('addon command', function(command, ...)
         until not direction_strings[args[1]]
 
         tracking.filter = T{}
-        for i = 1, args:length() / 2 do
+        for i = 1, args:length(), 2 do
             local key = args[i]
             local value = args[i + 1]
             value = value:number()
